@@ -3,178 +3,207 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Logística - FAMA</title>
+    <title>Relatório Unificado FAMA</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .loading { display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; font-weight: bold; }
+        .loading-overlay { display: flex; justify-content: center; align-items: center; height: 100vh; background: white; position: fixed; width: 100%; z-index: 100; }
+        .tab-active { border-bottom: 3px solid #1e3a8a; color: #1e3a8a; font-weight: bold; }
+        .table-container { max-height: 70vh; overflow-y: auto; }
+        thead th { position: sticky; top: 0; background: #f9fafb; z-index: 10; }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="bg-slate-50 text-slate-900">
 
-    <div id="loader" class="loading bg-white z-50 fixed w-full">
+    <div id="loader" class="loading-overlay">
         <div class="text-center">
-            <i class="fas fa-spinner fa-spin fa-3x text-blue-600 mb-4"></i>
-            <p class="text-xl font-semibold">Carregando Relatórios...</p>
+            <i class="fas fa-circle-notch fa-spin fa-3x text-blue-900 mb-4"></i>
+            <p class="text-lg font-bold">Consolidando milhares de dados...</p>
+            <p id="load-count" class="text-sm text-slate-500">Iniciando...</p>
         </div>
     </div>
 
-    <div class="max-w-7xl mx-auto p-4 md:p-8">
-        <header class="mb-8 flex flex-col md:flex-row justify-between items-center">
+    <div class="w-full max-w-[1600px] mx-auto p-4">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div>
-                <h1 class="text-3xl font-bold text-blue-900">Dashboard de Documentos Fiscais</h1>
-                <p class="text-gray-500">Monitoramento em tempo real de NFs e CTEs - FAMA</p>
+                <h1 class="text-2xl font-black text-blue-900">LOGÍSTICA FAMA - RELATÓRIO UNIFICADO</h1>
+                <p class="text-slate-500 text-sm">Integração de Notas Fiscais e Conhecimentos de Transporte</p>
             </div>
-            <button onclick="fetchData()" class="mt-4 md:mt-0 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow-md transition">
-                <i class="fas fa-sync-alt mr-2"></i> Atualizar Dados
-            </button>
+            <div class="flex gap-4 mt-4 md:mt-0">
+                <div class="text-right">
+                    <p class="text-xs text-slate-400 uppercase font-bold">Total de Registros</p>
+                    <p id="total-count" class="text-2xl font-black text-blue-600">0</p>
+                </div>
+                <button onclick="window.location.reload()" class="bg-blue-900 hover:bg-black text-white px-5 py-2 rounded-xl transition flex items-center">
+                    <i class="fas fa-sync-alt mr-2"></i> Atualizar
+                </button>
+            </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8" id="summary-cards"></div>
+        <!-- Cards de Status -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="summary-cards"></div>
 
-        <div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-col md:flex-row gap-4 justify-between items-center text-sm">
-            <div class="flex gap-4 overflow-x-auto pb-2 w-full md:w-auto" id="filter-tabs"></div>
-            <div class="relative w-full md:w-64">
-                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Buscar nota, CNPJ..." class="pl-10 pr-4 py-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <!-- Barra de Busca e Filtros -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm mb-6 flex flex-col md:flex-row gap-6 justify-between items-center">
+            <div class="flex gap-6 overflow-x-auto w-full md:w-auto pb-2" id="filter-tabs">
+                <button onclick="filterTable('TODOS')" class="pb-2 tab-active" id="tab-todos">Todos os Registros</button>
+                <button onclick="filterTable('VINCULADO')" class="pb-2 text-slate-400 hover:text-blue-900" id="tab-vinc">Vinculados (NF+CTE)</button>
+                <button onclick="filterTable('APENAS NF')" class="pb-2 text-slate-400 hover:text-blue-900" id="tab-nf">Apenas NF (Falta Frete)</button>
+                <button onclick="filterTable('APENAS CTE')" class="pb-2 text-slate-400 hover:text-blue-900" id="tab-cte">Apenas CTE (Falta NF)</button>
+            </div>
+            <div class="relative w-full md:w-96">
+                <i class="fas fa-search absolute left-4 top-3.5 text-slate-300"></i>
+                <input type="text" id="searchInput" onkeyup="search()" placeholder="Buscar por Nota, Chave, Emitente..." class="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
+        <!-- Tabela Principal -->
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div class="table-container">
+                <table class="w-full text-left text-sm">
                     <thead>
-                        <tr class="bg-gray-50 text-gray-600 uppercase text-xs font-bold border-b">
-                            <th class="p-4">Data</th>
-                            <th class="p-4">Situação</th>
-                            <th class="p-4">Número NF</th>
-                            <th class="p-4">Emitente</th>
-                            <th class="p-4">Destinatário</th>
-                            <th class="p-4">Valor NF</th>
-                            <th class="p-4">Frete</th>
+                        <tr class="text-slate-400 font-bold border-b text-[11px] uppercase tracking-wider">
+                            <th class="p-4">Status</th>
+                            <th class="p-4">Data NF</th>
+                            <th class="p-4">Nº Nota</th>
+                            <th class="p-4">Emitente / Destinatário</th>
+                            <th class="p-4 text-right">Valor Mercadoria</th>
+                            <th class="p-4">Transportadora / CTE</th>
+                            <th class="p-4 text-right">Valor Frete</th>
                             <th class="p-4">Ações</th>
                         </tr>
                     </thead>
-                    <tbody id="table-body" class="divide-y text-sm"></tbody>
+                    <tbody id="main-table-body" class="divide-y divide-slate-100"></tbody>
                 </table>
             </div>
-        </div>
-    </div>
-
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex justify-center items-center z-[100] p-4">
-        <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 relative">
-            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-red-500 text-2xl"><i class="fas fa-times"></i></button>
-            <h2 class="text-2xl font-bold mb-6 text-blue-900 border-b pb-2">Detalhes do Documento</h2>
-            <div id="modal-content" class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm"></div>
         </div>
     </div>
 
     <script>
         const SUB_URL = "https://pdqkvyxufnprapkgsvxx.supabase.co";
         const SUB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkcWt2eXh1Zm5wcmFwa2dzdnh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyMDE2MzAsImV4cCI6MjA3ODc3NzYzMH0.CFxmP1S8829joB6txKQ4bypp-Qr7SDHAg0P2Dgpti1k";
-        
-        // NOME DA VARIÁVEL CORRIGIDO AQUI:
         const supabaseClient = window.supabase.createClient(SUB_URL, SUB_KEY);
 
-        let fullData = [];
-        let currentFilter = 'TODOS';
+        let allRecords = [];
 
-        async function fetchData() {
-            document.getElementById('loader').style.display = 'flex';
-            const { data, error } = await supabaseClient
-                .from('documentos_fiscais')
-                .select('*')
-                .order('created_at', { ascending: false });
+        async function loadAllData() {
+            let page = 0;
+            let pageSize = 1000;
+            let keepFetching = true;
 
-            if (error) { console.error(error); return; }
-            fullData = data;
-            renderAll();
+            while (keepFetching) {
+                document.getElementById('load-count').innerText = `Baixando lote ${page + 1}...`;
+                const { data, error } = await supabaseClient
+                    .from('relatorio_unificado') // LENDO DA VIEW QUE CRIAMOS
+                    .select('*')
+                    .range(page * pageSize, (page + 1) * pageSize - 1);
+
+                if (error || data.length === 0) {
+                    keepFetching = false;
+                } else {
+                    allRecords = [...allRecords, ...data];
+                    page++;
+                    if (data.length < pageSize) keepFetching = false;
+                }
+            }
+            
             document.getElementById('loader').style.display = 'none';
+            document.getElementById('total-count').innerText = allRecords.length;
+            renderAll();
         }
 
         function renderAll() {
-            renderSummary();
-            renderFilterTabs();
-            renderTable(fullData);
-        }
-
-        function renderSummary() {
-            const situations = [...new Set(fullData.map(item => item.situacao))];
-            const container = document.getElementById('summary-cards');
-            container.innerHTML = `
-                <div class="bg-blue-900 text-white p-4 rounded-xl shadow-md cursor-pointer hover:scale-105 transition" onclick="filterBy('TODOS')">
-                    <p class="text-xs uppercase opacity-70">Total Geral</p>
-                    <p class="text-2xl font-bold">${fullData.length}</p>
-                </div>`;
-            situations.forEach(sit => {
-                const count = fullData.filter(i => i.situacao === sit).length;
-                container.innerHTML += `
-                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500 cursor-pointer hover:bg-blue-50 transition" onclick="filterBy('${sit}')">
-                        <p class="text-xs text-gray-500 uppercase font-bold truncate">${sit}</p>
-                        <p class="text-2xl font-bold text-blue-900">${count}</p>
-                    </div>`;
-            });
-        }
-
-        function renderFilterTabs() {
-            const situations = [...new Set(fullData.map(item => item.situacao))];
-            const container = document.getElementById('filter-tabs');
-            container.innerHTML = `<button onclick="filterBy('TODOS')" class="px-4 py-2 whitespace-nowrap ${currentFilter === 'TODOS' ? 'tab-active' : ''}">Todos</button>`;
-            situations.forEach(sit => {
-                container.innerHTML += `<button onclick="filterBy('${sit}')" class="px-4 py-2 whitespace-nowrap ${currentFilter === sit ? 'tab-active' : ''}">${sit}</button>`;
-            });
-        }
-
-        function renderTable(dataToRender) {
-            const body = document.getElementById('table-body');
+            const body = document.getElementById('main-table-body');
             body.innerHTML = "";
-            dataToRender.forEach((item, index) => {
-                body.innerHTML += `
-                    <tr class="hover:bg-gray-50 transition border-b">
-                        <td class="p-4 text-gray-600">${item.data_formatada || '---'}</td>
-                        <td class="p-4"><span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold uppercase">${item.situacao}</span></td>
-                        <td class="p-4 font-bold text-gray-900">${item.numero_nota || 'N/A'}</td>
-                        <td class="p-4 text-gray-600 truncate max-w-[120px]">${item.emitente_nome}</td>
-                        <td class="p-4 text-gray-600 truncate max-w-[120px]">${item.destinatario_nome}</td>
-                        <td class="p-4 font-bold text-green-600">R$ ${parseFloat(item.valor_nf).toLocaleString('pt-BR')}</td>
-                        <td class="p-4 font-bold text-blue-600">R$ ${parseFloat(item.valor_frete).toLocaleString('pt-BR')}</td>
-                        <td class="p-4"><button onclick="showDetails(${index})" class="text-blue-600 bg-blue-50 p-2 rounded-full"><i class="fas fa-eye"></i></button></td>
-                    </tr>`;
-            });
+            renderTable(allRecords);
+            renderCards();
         }
 
-        function filterBy(situation) {
-            currentFilter = situation;
-            const filtered = situation === 'TODOS' ? fullData : fullData.filter(i => i.situacao === situation);
+        function renderTable(data) {
+            const body = document.getElementById('main-table-body');
+            body.innerHTML = data.map(item => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="p-4">
+                        <span class="px-3 py-1 rounded-full text-[10px] font-bold ${getStatusColor(item.status_geral)}">
+                            ${item.status_geral}
+                        </span>
+                    </td>
+                    <td class="p-4 text-slate-500">${item.data_nf || '---'}</td>
+                    <td class="p-4 font-black">${item.numero_nota || '---'}</td>
+                    <td class="p-4">
+                        <div class="font-bold text-slate-700 truncate max-w-[200px]">${item.emitente_nf || '---'}</div>
+                        <div class="text-[11px] text-slate-400 truncate max-w-[200px]">PARA: ${item.destinatario_nf || '---'}</div>
+                    </td>
+                    <td class="p-4 text-right font-bold text-green-600">R$ ${Number(item.valor_nf).toLocaleString('pt-BR')}</td>
+                    <td class="p-4">
+                        <div class="font-bold text-slate-700 truncate max-w-[200px]">${item.transportadora_nome || 'Aguardando...'}</div>
+                        <div class="text-[11px] text-blue-500 font-mono">${item.chave_cte || 'CTE Pendente'}</div>
+                    </td>
+                    <td class="p-4 text-right font-bold text-blue-600">R$ ${Number(item.valor_frete).toLocaleString('pt-BR')}</td>
+                    <td class="p-4 text-center">
+                        <button class="text-slate-300 hover:text-blue-900"><i class="fas fa-ellipsis-v"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function getStatusColor(status) {
+            if (status === 'VINCULADO') return 'bg-green-100 text-green-700';
+            if (status.includes('Falta Frete')) return 'bg-amber-100 text-amber-700';
+            return 'bg-blue-100 text-blue-700';
+        }
+
+        function filterTable(type) {
+            // Remove active style from all tabs
+            document.querySelectorAll('#filter-tabs button').forEach(b => b.classList.remove('tab-active', 'text-blue-900'));
+            
+            let filtered = [];
+            if (type === 'TODOS') {
+                filtered = allRecords;
+                document.getElementById('tab-todos').classList.add('tab-active');
+            } else {
+                filtered = allRecords.filter(i => i.status_geral.includes(type));
+                const tabId = type === 'VINCULADO' ? 'tab-vinc' : (type === 'APENAS NF' ? 'tab-nf' : 'tab-cte');
+                document.getElementById(tabId).classList.add('tab-active');
+            }
             renderTable(filtered);
-            renderFilterTabs();
         }
 
-        function searchTable() {
-            const val = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = fullData.filter(i => 
-                (i.numero_nota && i.numero_nota.toString().includes(val)) ||
-                (i.emitente_nome && i.emitente_nome.toLowerCase().includes(val)) ||
-                (i.destinatario_nome && i.destinatario_nome.toLowerCase().includes(val))
+        function search() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allRecords.filter(i => 
+                (i.numero_nota && i.numero_nota.toString().includes(term)) ||
+                (i.emitente_nf && i.emitente_nf.toLowerCase().includes(term)) ||
+                (i.chave_nf_referencia && i.chave_nf_referencia.includes(term)) ||
+                (i.transportadora_nome && i.transportadora_nome.toLowerCase().includes(term))
             );
             renderTable(filtered);
         }
 
-        function showDetails(index) {
-            const item = fullData[index];
-            const content = document.getElementById('modal-content');
-            content.innerHTML = "";
-            for (let [key, value] of Object.entries(item)) {
-                if (key === 'created_at' || key === 'id') continue;
-                content.innerHTML += `<div class="border-b pb-2"><p class="text-[10px] text-gray-400 uppercase font-bold">${key.replace(/_/g, ' ')}</p><p class="text-gray-800 break-all font-medium">${value || '---'}</p></div>`;
-            }
-            document.getElementById('modal').classList.remove('hidden');
+        function renderCards() {
+            const container = document.getElementById('summary-cards');
+            const vin = allRecords.filter(i => i.status_geral === 'VINCULADO').length;
+            const nf = allRecords.filter(i => i.status_geral.includes('Falta Frete')).length;
+            const cte = allRecords.filter(i => i.status_geral.includes('Falta NF')).length;
+
+            container.innerHTML = `
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Notas com Frete Pago</p>
+                    <p class="text-3xl font-black text-green-600">${vin}</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Notas pendentes de Frete</p>
+                    <p class="text-3xl font-black text-amber-500">${nf}</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Fretes sem Nota Localizada</p>
+                    <p class="text-3xl font-black text-blue-500">${cte}</p>
+                </div>
+            `;
         }
 
-        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
-        fetchData();
+        loadAllData();
     </script>
 </body>
 </html>
