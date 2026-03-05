@@ -3,103 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Logística - FAMA</title>
+    <title>Relatório Master Logística - FAMA</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .loading-screen { display: flex; justify-content: center; align-items: center; height: 100vh; background: #f8fafc; position: fixed; width: 100%; z-index: 100; flex-direction: column; }
-        .tab-active { background-color: #1e3a8a; color: white; border-radius: 8px; }
-        .table-wrapper { max-height: 65vh; overflow-y: auto; border-radius: 12px; }
-        thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 10; padding: 12px; font-size: 11px; color: #64748b; text-transform: uppercase; }
-        .card-stat { transition: transform 0.2s; cursor: pointer; }
-        .card-stat:hover { transform: translateY(-5px); }
+        .loading-overlay { display: flex; justify-content: center; align-items: center; height: 100vh; background: white; position: fixed; width: 100%; z-index: 100; flex-direction: column; }
+        .tab-active { background: #1e3a8a; color: white; border-radius: 12px; }
+        .table-container { max-height: 60vh; overflow-y: auto; border-radius: 15px; }
+        thead th { position: sticky; top: 0; background: #f8fafc; z-index: 10; border-bottom: 2px solid #e2e8f0; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-900 font-sans">
+<body class="bg-slate-50 text-slate-900 font-sans">
 
-    <!-- Tela de Carregamento -->
-    <div id="loader" class="loading-screen">
-        <div class="relative flex items-center justify-center mb-4">
-            <div class="w-20 h-20 border-4 border-blue-200 border-t-blue-900 rounded-full animate-spin"></div>
-            <i class="fas fa-truck-loading absolute text-blue-900"></i>
-        </div>
-        <p class="text-lg font-black text-blue-900">CONSOLIDANDO DADOS LOGÍSTICOS</p>
-        <p id="load-status" class="text-sm text-slate-500 font-mono">Iniciando conexão...</p>
+    <div id="loader" class="loading-overlay">
+        <div class="w-16 h-16 border-4 border-slate-200 border-t-blue-900 rounded-full animate-spin mb-4"></div>
+        <p class="font-black text-blue-900 tracking-tighter">PROCESSANDO MILHARES DE DOCUMENTOS...</p>
     </div>
 
-    <div class="w-full max-w-[1700px] mx-auto p-4 md:p-6">
+    <div class="w-full max-w-[1650px] mx-auto p-4 md:p-6">
         
-        <!-- Cabeçalho -->
-        <header class="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm">
-            <div class="flex items-center gap-4">
-                <div class="bg-blue-900 p-3 rounded-2xl text-white">
-                    <i class="fas fa-chart-line fa-2x"></i>
-                </div>
-                <div>
-                    <h1 class="text-2xl font-black text-blue-900 tracking-tight">RELATÓRIO UNIFICADO DE OPERAÇÕES</h1>
-                    <p class="text-slate-400 text-sm font-medium">FAMA AUTO PEÇAS & DISTRIBUIDORA DF</p>
-                </div>
+        <header class="flex flex-col lg:flex-row justify-between items-center mb-8 bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+            <div>
+                <h1 class="text-3xl font-black text-blue-900 tracking-tighter uppercase leading-none">Relatório de Auditoria</h1>
+                <p class="text-slate-400 font-bold mt-2">NF-e vs CT-e | Cruzamento Automático de Dados</p>
             </div>
-            <div class="flex gap-6 mt-4 md:mt-0">
-                <div class="text-center">
-                    <p class="text-[10px] text-slate-400 uppercase font-black">Total Documentos</p>
-                    <p id="total-val" class="text-3xl font-black text-blue-900">0</p>
+            <div class="flex gap-8 mt-6 lg:mt-0 items-center">
+                <div class="text-right border-r pr-8 border-slate-100">
+                    <p class="text-[10px] text-slate-400 uppercase font-black">Peso Total (Filtro)</p>
+                    <p id="total-weight" class="text-3xl font-black text-blue-600">0.0 <span class="text-sm">ton</span></p>
                 </div>
-                <button onclick="window.location.reload()" class="bg-slate-900 hover:bg-blue-900 text-white px-6 py-2 rounded-2xl transition shadow-lg self-center">
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-400 uppercase font-black">Documentos</p>
+                    <p id="total-docs" class="text-3xl font-black text-slate-900">0</p>
+                </div>
+                <button onclick="window.location.reload()" class="bg-blue-900 hover:bg-black text-white p-4 rounded-2xl transition shadow-xl">
                     <i class="fas fa-sync-alt"></i>
                 </button>
             </div>
         </header>
 
-        <!-- Cards das Regras de Situação (Automático) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="situation-cards">
-            <!-- Gerado via JS baseado no seu nó REGRA SITUACOES -->
+        <!-- Filtros Principais -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <button onclick="setGlobalFilter('TODOS')" id="btn-todos" class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-slate-300 text-left hover:scale-[1.02] transition tab-active">
+                <p class="text-[10px] font-black text-slate-400 uppercase">Geral</p>
+                <p class="text-xl font-black">TODOS</p>
+            </button>
+            <button onclick="setGlobalFilter('VINCULADO')" id="btn-vinc" class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-green-500 text-left hover:scale-[1.02] transition">
+                <p class="text-[10px] font-black text-slate-400 uppercase">Auditoria OK</p>
+                <p class="text-xl font-black text-green-600">NF + CTE</p>
+            </button>
+            <button onclick="setGlobalFilter('APENAS NF')" id="btn-nf" class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-amber-500 text-left hover:scale-[1.02] transition">
+                <p class="text-[10px] font-black text-slate-400 uppercase">Pendente</p>
+                <p class="text-xl font-black text-amber-600">APENAS NF</p>
+            </button>
+            <button onclick="setGlobalFilter('APENAS CTE')" id="btn-cte" class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-blue-500 text-left hover:scale-[1.02] transition">
+                <p class="text-[10px] font-black text-slate-400 uppercase">Não Localizado</p>
+                <p class="text-xl font-black text-blue-600">APENAS CTE</p>
+            </button>
         </div>
 
-        <!-- Filtros e Busca -->
-        <div class="bg-white p-4 rounded-3xl shadow-sm mb-6 flex flex-col lg:flex-row gap-6 justify-between items-center">
-            <div class="flex gap-2 overflow-x-auto w-full lg:w-auto p-1" id="filter-tabs">
-                <!-- Abas de filtro -->
+        <!-- Tabela e Busca -->
+        <div class="bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden">
+            <div class="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
+                <h3 class="font-black text-slate-400 uppercase text-xs tracking-widest">Listagem Detalhada</h3>
+                <div class="relative w-full md:w-96">
+                    <i class="fas fa-search absolute left-4 top-3.5 text-slate-300"></i>
+                    <input type="text" id="searchInput" onkeyup="search()" placeholder="Buscar por Nota, Chave ou Nome..." class="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold">
+                </div>
             </div>
-            <div class="relative w-full lg:w-96">
-                <i class="fas fa-search absolute left-4 top-3.5 text-slate-300"></i>
-                <input type="text" id="searchInput" onkeyup="search()" placeholder="Buscar Nota, Chave, Empresa..." class="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none text-sm">
-            </div>
-        </div>
 
-        <!-- Tabela -->
-        <div class="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-            <div class="table-wrapper">
-                <table class="w-full text-left text-sm">
+            <div class="table-container">
+                <table class="w-full text-left text-sm border-separate border-spacing-0">
                     <thead>
-                        <tr>
-                            <th class="p-4">Situação Operacional</th>
-                            <th class="p-4">Data Emissão</th>
+                        <tr class="text-slate-400 font-black text-[10px] uppercase">
+                            <th class="p-4 pl-8">Status</th>
+                            <th class="p-4">Data</th>
                             <th class="p-4">NF-e</th>
                             <th class="p-4">Emitente / Destinatário</th>
                             <th class="p-4">Transportadora</th>
-                            <th class="p-4 text-right">Valor Nota</th>
-                            <th class="p-4 text-right">Valor Frete</th>
-                            <th class="p-4 text-center">Info</th>
+                            <th class="p-4 text-right">Peso (Kg)</th>
+                            <th class="p-4 text-right">Valor NF</th>
+                            <th class="p-4 text-right pr-8">Valor Frete</th>
                         </tr>
                     </thead>
-                    <tbody id="table-body" class="divide-y divide-slate-100">
-                        <!-- Dados -->
-                    </tbody>
+                    <tbody id="main-table-body" class="divide-y divide-slate-50"></tbody>
                 </table>
             </div>
-        </div>
-    </div>
-
-    <!-- Modal de Detalhes -->
-    <div id="modal" class="fixed inset-0 bg-slate-900/80 hidden flex justify-center items-center z-[100] p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-8 relative shadow-2xl">
-            <button onclick="closeModal()" class="absolute top-6 right-6 text-slate-300 hover:text-red-500 transition text-2xl"><i class="fas fa-times-circle"></i></button>
-            <h2 class="text-2xl font-black mb-8 text-blue-900 flex items-center gap-3">
-                <i class="fas fa-file-invoice"></i> Detalhes do Documento
-            </h2>
-            <div id="modal-content" class="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12"></div>
         </div>
     </div>
 
@@ -109,22 +99,20 @@
         const supabaseClient = window.supabase.createClient(SUB_URL, SUB_KEY);
 
         let allRecords = [];
-        let currentFilter = 'TODOS';
+        let globalFilter = 'TODOS';
 
-        // Carrega TODOS os dados com loop de paginação
         async function loadData() {
             let page = 0;
             const size = 1000;
             let fetching = true;
 
             while (fetching) {
-                document.getElementById('load-status').innerText = `Baixando lote ${page + 1} (${allRecords.length} registros)...`;
                 const { data, error } = await supabaseClient
-                    .from('documentos_fiscais')
+                    .from('relatorio_unificado')
                     .select('*')
                     .range(page * size, (page + 1) * size - 1);
 
-                if (error || data.length === 0) {
+                if (error || !data || data.length === 0) {
                     fetching = false;
                 } else {
                     allRecords = [...allRecords, ...data];
@@ -133,102 +121,81 @@
                 }
             }
             
-            document.getElementById('total-val').innerText = allRecords.length.toLocaleString('pt-BR');
             document.getElementById('loader').style.display = 'none';
-            renderAll();
+            applyLogic();
         }
 
-        function renderAll() {
-            renderCards();
-            renderTable(allRecords);
-            renderTabs();
-        }
+        function applyLogic() {
+            let filtered = allRecords;
+            if (globalFilter !== 'TODOS') {
+                filtered = allRecords.filter(i => i.status_geral.includes(globalFilter));
+            }
 
-        function renderCards() {
-            const container = document.getElementById('situation-cards');
-            const sits = [...new Set(allRecords.map(i => i.situacao))];
+            // Atualiza contadores
+            document.getElementById('total-docs').innerText = filtered.length;
             
-            container.innerHTML = "";
-            sits.forEach(sit => {
-                const count = allRecords.filter(i => i.situacao === sit).length;
-                container.innerHTML += `
-                    <div class="bg-white p-6 rounded-3xl shadow-sm border-b-4 border-blue-900 card-stat" onclick="filterBy('${sit}')">
-                        <p class="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">${sit}</p>
-                        <p class="text-3xl font-black text-blue-900">${count}</p>
-                    </div>
-                `;
-            });
-        }
+            // Calcula Peso Total em Toneladas
+            const totalWeightKg = filtered.reduce((acc, curr) => acc + (parseFloat(curr.peso_final) || 0), 0);
+            document.getElementById('total-weight').innerHTML = `${(totalWeightKg / 1000).toFixed(2)} <span class="text-sm font-bold">ton</span>`;
 
-        function renderTabs() {
-            const container = document.getElementById('filter-tabs');
-            const sits = ['TODOS', ...new Set(allRecords.map(i => i.situacao))];
-            
-            container.innerHTML = sits.map(sit => `
-                <button onclick="filterBy('${sit}')" class="px-4 py-2 whitespace-nowrap text-xs font-bold transition ${currentFilter === sit ? 'tab-active' : 'text-slate-400 hover:text-blue-900'}">
-                    ${sit}
-                </button>
-            `).join('');
+            renderTable(filtered);
+            updateButtonStyles();
         }
 
         function renderTable(data) {
-            const body = document.getElementById('table-body');
-            body.innerHTML = data.map((item, idx) => `
-                <tr class="hover:bg-blue-50/50 transition border-b border-slate-50">
-                    <td class="p-4"><span class="text-[10px] font-black bg-blue-50 text-blue-900 px-2 py-1 rounded-md uppercase">${item.situacao}</span></td>
-                    <td class="p-4 text-slate-500 font-medium">${item.data_formatada || '---'}</td>
+            const body = document.getElementById('main-table-body');
+            body.innerHTML = data.map(item => `
+                <tr class="hover:bg-slate-50 transition group">
+                    <td class="p-4 pl-8">
+                        <span class="px-3 py-1 rounded-lg text-[9px] font-black uppercase ${getStatusStyle(item.status_geral)}">
+                            ${item.status_geral}
+                        </span>
+                    </td>
+                    <td class="p-4 text-slate-500 font-bold text-xs">${item.data_nf || item.data_cte || '---'}</td>
                     <td class="p-4 font-black text-slate-900">${item.numero_nota || '---'}</td>
                     <td class="p-4">
-                        <div class="font-bold text-slate-800 truncate max-w-[180px]">${item.emitente_nome}</div>
-                        <div class="text-[10px] text-slate-400 truncate max-w-[180px]">DEST: ${item.destinatario_nome}</div>
+                        <div class="font-bold text-slate-700 truncate max-w-[200px] leading-tight">${item.emitente_nf || '---'}</div>
+                        <div class="text-[10px] text-slate-400 truncate max-w-[200px]">DEST: ${item.destinatario_nf || '---'}</div>
                     </td>
                     <td class="p-4">
-                        <div class="font-medium text-slate-700 truncate max-w-[150px]">${item.transportadora_nome || 'PRÓPRIO'}</div>
-                        <div class="text-[9px] text-blue-400 font-mono">${item.chave_cte || ''}</div>
+                        <div class="font-bold text-slate-600 truncate max-w-[150px] leading-tight">${item.transportadora_nome || 'PRÓPRIO'}</div>
+                        <div class="text-[9px] text-blue-400 font-mono uppercase">${item.chave_cte || ''}</div>
                     </td>
-                    <td class="p-4 text-right font-bold text-slate-900">R$ ${Number(item.valor_nf).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                    <td class="p-4 text-right font-bold text-blue-600">R$ ${Number(item.valor_frete).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                    <td class="p-4 text-center">
-                        <button onclick="showDetails(${allRecords.indexOf(item)})" class="text-blue-200 hover:text-blue-900 transition"><i class="fas fa-info-circle fa-lg"></i></button>
-                    </td>
+                    <td class="p-4 text-right font-black text-slate-400">${Number(item.peso_final).toLocaleString('pt-BR')}</td>
+                    <td class="p-4 text-right font-black text-green-600">R$ ${Number(item.valor_nf).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td class="p-4 text-right font-black text-blue-600 pr-8">R$ ${Number(item.valor_frete).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                 </tr>
             `).join('');
         }
 
-        function filterBy(sit) {
-            currentFilter = sit;
-            const filtered = sit === 'TODOS' ? allRecords : allRecords.filter(i => i.situacao === sit);
-            renderTable(filtered);
-            renderTabs();
+        function getStatusStyle(status) {
+            if (status === 'VINCULADO') return 'bg-green-100 text-green-700';
+            if (status.includes('APENAS NF')) return 'bg-amber-100 text-amber-700';
+            return 'bg-blue-100 text-blue-700';
+        }
+
+        function setGlobalFilter(val) {
+            globalFilter = val;
+            applyLogic();
+        }
+
+        function updateButtonStyles() {
+            const btns = { 'TODOS': 'btn-todos', 'VINCULADO': 'btn-vinc', 'APENAS NF': 'btn-nf', 'APENAS CTE': 'btn-cte' };
+            Object.values(btns).forEach(id => document.getElementById(id).classList.remove('tab-active'));
+            document.getElementById(btns[globalFilter]).classList.add('tab-active');
         }
 
         function search() {
             const term = document.getElementById('searchInput').value.toLowerCase();
             const filtered = allRecords.filter(i => 
                 (i.numero_nota && i.numero_nota.toString().includes(term)) ||
-                (i.emitente_nome && i.emitente_nome.toLowerCase().includes(term)) ||
-                (i.chave_nf && i.chave_nf.includes(term)) ||
+                (i.emitente_nf && i.emitente_nf.toLowerCase().includes(term)) ||
+                (i.chave_nf_referencia && i.chave_nf_referencia.includes(term)) ||
                 (i.transportadora_nome && i.transportadora_nome.toLowerCase().includes(term))
             );
             renderTable(filtered);
         }
 
-        function showDetails(index) {
-            const item = allRecords[index];
-            const content = document.getElementById('modal-content');
-            content.innerHTML = Object.entries(item)
-                .filter(([k]) => !['id', 'created_at'].includes(k))
-                .map(([key, val]) => `
-                    <div class="border-b border-slate-50 pb-2">
-                        <p class="text-[10px] text-slate-400 uppercase font-black tracking-tighter">${key.replace(/_/g, ' ')}</p>
-                        <p class="text-sm text-slate-800 font-bold break-all">${val || '---'}</p>
-                    </div>
-                `).join('');
-            document.getElementById('modal').classList.remove('hidden');
-        }
-
-        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
-        
         loadData();
     </script>
 </body>
